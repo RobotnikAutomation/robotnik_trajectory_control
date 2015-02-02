@@ -1,0 +1,4 @@
+# Actions defined in robotnik_torso_control/msg/Actions.msg
+int32 action
+---
+bool ret

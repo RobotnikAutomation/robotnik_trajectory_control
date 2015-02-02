@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<!-- Launch for the trajectory simulation -->
+<launch>
+	<!-- Configuration of every interface -->
+	<rosparam command="load" file="$(find robotnik_trajectory_control)/config/device_command_interfaces.yaml" />
+	
+	<arg name="load_robot_description" default="false"/>
+	<arg name="publish_robot_state" default="false"/>
+
+  	<!-- Load universal robotic description format (URDF) -->
+  	<param if="$(arg load_robot_description)" name="robot_description" command="$(find xacro)/xacro.py '$(find robotnik_powerball_basics)/urdf/schunk_lwa4p_alone.urdf.xacro'"/>
+
+	<!-- Combine joint values -->
+	<node name="rt_traj_exe" pkg="robotnik_trajectory_control" type="rt_sim_traj_exe.py" output="screen"/>
+	
+	
+	<!-- Combine joint values -->
+	<node if="$(arg publish_robot_state)" name="robot_state_publisher" pkg="robot_state_publisher" type="state_publisher"/>
+	
+	<!-- Show in Rviz   -->
+	<!--node name="rviz" pkg="rviz" type="rviz"/-->  
+</launch> 
