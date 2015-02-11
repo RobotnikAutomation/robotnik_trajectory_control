@@ -64,7 +64,7 @@ class DeviceCommandInterface():
 		self.joint_state_pointer = {} 
 	
 		# State of the component
-		self.state = State.INIT_STATE
+		self.state = State.READY_STATE
 	
 	def setup(self):
 		'''
@@ -157,7 +157,7 @@ class DeviceCommandInterface():
 			self.joint_state.velocity[i] = self.joint_state_pointer[self.joint_names[i]][1]
 			self.joint_state.effort[i] = self.joint_state_pointer[self.joint_names[i]][2]
 			
-			
+		#self.joint_state.position=[]	
 		self.joint_state.header.stamp = rospy.Time.now()
 		#rospy.loginfo('%s-%s:sendCommand: sending command (pos = %s) to %s'%(self.type, self.name, self.joint_state.position, self.command_topic))	
 		self.command_publisher.publish(self.joint_state)

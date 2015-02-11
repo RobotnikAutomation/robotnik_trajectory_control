@@ -4,11 +4,13 @@
 	
 	
     <!-- Configuration of every interface -->
-    <rosparam command="load" file="$(find robotnik_trajectory_control)/config/device_command_interfaces.yaml" />
+    <rosparam command="load" file="$(find robotnik_trajectory_control)/config/test_dpro_command_interfaces.yaml" />
     <!-- Combine joint values -->
 	<node name="rt_traj_exe" pkg="robotnik_trajectory_control" type="rt_traj_exe.py" output="screen">
-		<remap from="joint_states" to="/rb1_arm/joint_states"/>
-		<param name="error_joint_position" value="0.009"/>
+		<!-- remap from="joint_states" to="/rb1_arm/joint_states"/ -->
+		<!-- param name="error_joint_position" value="0.009"/ -->
+		<param name="error_joint_position" value="0.09"/>
+		<param name="desired_freq" value="20.0"/>
 	</node>
 	
 </launch> 

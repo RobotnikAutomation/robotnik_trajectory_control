@@ -26,17 +26,18 @@ if __name__ == '__main__':
 	goal = FollowJointTrajectoryGoal()
 	goal.trajectory.header.stamp = rospy.Time()
 	#goal.trajectory.joint_names = ['right_arm_4_joint', 'right_arm_2_joint', 'right_arm_1_joint', 'right_arm_3_joint']
-	goal.trajectory.joint_names = ['j1', 'j2', 'j3', 'j4']
+	#goal.trajectory.joint_names = ['j1', 'j2', 'j3', 'j4']
+	goal.trajectory.joint_names = ['j1_head', 'j2_head']
 	tpoint1 = JointTrajectoryPoint()
-	tpoint1.positions = [0, 0.0, 0.0, 0.0]
-	tpoint1.velocities = [0.3, 0.1, 0.1, 0.1]
-	tpoint1.accelerations = [0.1, 0.1, 0.1, 0.1]
+	tpoint1.positions = [2.0, 2.0]
+	tpoint1.velocities = [1.0, 1.0]
+	tpoint1.accelerations = [1.0, 1.0]
 	tpoint1.time_from_start = rospy.Duration.from_sec(5.0)
 	
 	tpoint2 = JointTrajectoryPoint()
-	tpoint2.positions = [0.3, 0.31, 0.32, 0.93]
-	tpoint2.velocities = [0.1, 0.11, 0.12, 0.13]
-	tpoint2.accelerations = [0.1, 0.1, 0.1, 0.1]
+	tpoint2.positions = [-2.0, -2.0]
+	tpoint2.velocities = [1.0, 1.0]
+	tpoint2.accelerations = [1.0, 1.0]
 	tpoint2.time_from_start = rospy.Duration.from_sec(5.0)
 	
 	
@@ -55,8 +56,14 @@ if __name__ == '__main__':
 		
 			
 		print 'Result is %s'%client.get_result()
-
-		time.sleep(2.0)
+		time.sleep(2)
+		tpoint1.positions = [2.0, 2.0]
+		tpoint2.positions = [3.0, 3.0]
+		rospy.loginfo('overwrite')
+		client.send_goal(goal)
+		while not client.wait_for_result(rospy.Duration.from_sec(5.0)) and not rospy.is_shutdown():
+			rospy.loginfo('waiting for result. state = %s'%client.get_state())
+		"""time.sleep(2.0)
 		
 		tpoint2.velocities = [0.1, 0.3, 0.12, 0.13]
 		tpoint1.positions = [0.5, 1.0, 0.5, 0.5]
@@ -81,7 +88,7 @@ if __name__ == '__main__':
 		rospy.loginfo('waiting for result')
 		while not client.wait_for_result(rospy.Duration.from_sec(5.0)) and not rospy.is_shutdown():
 			rospy.loginfo('waiting for result. state = %s'%client.get_state())
-		print 'Result is %s'%client.get_result()
+		print 'Result is %s'%client.get_result()"""
 	# Sends 1 traj and owerwrite it
 	elif option == 2:
 		rospy.loginfo('OPTION 2: sending trajectory 1')
