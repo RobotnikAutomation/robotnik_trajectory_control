@@ -1,0 +1,12 @@
+
+
+fake_joints: 
+ j1: { name: j1, value: 2.0}
+ j2: { name: j2, value: 0.0}
+ j3: { name: j3, value: 0.0}
+ j4: { name: j4, value: 0.0}
+ j5: { name: j5, value: 0.0}
+ j6: { name: j6, value: 0.0}
+ j7: { name: j7, value: 0.0}
+
+

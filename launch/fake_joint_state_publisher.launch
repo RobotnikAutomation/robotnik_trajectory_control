@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<!-- Launch for the trajectory simulation -->
+<launch>
+	
+	
+    <!-- Configuration of every interface -->
+    <rosparam command="load" file="$(find robotnik_trajectory_control)/config/fake_joint_state_pub.yaml" />
+    <!-- Combine joint values -->
+	<node name="fake_js_publisher" pkg="robotnik_trajectory_control" type="pub_joint_states.py" output="screen">
+		<param name="desired_freq" value="10.0"/>
+	</node>
+	
+</launch> 
