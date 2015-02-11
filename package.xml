@@ -2,7 +2,7 @@
 <package>
   <name>robotnik_trajectory_control</name>
   <version>0.1.0</version>
-  <description>The robotnik_trajectory_control package</description>
+  <description>The robotnik_trajectory_control package is inended to control and execute a FollowJointTrajectory msg from Moveit. It can coordinate the execution of different controllers</description>
 
   <!-- One maintainer tag required, multiple allowed, one person per tag --> 
   <!-- Example:  -->
@@ -17,11 +17,7 @@
   <!-- Example: -->
   <!-- <url type="website">http://wiki.ros.org/robotnik_torso_control</url> -->
 
-
-  <!-- Author tags are optional, mutiple are allowed, one per tag -->
-  <!-- Authors do not have to be maintianers, but could be -->
-  <!-- Example: -->
-  <!-- <author email="jane.doe@example.com">Jane Doe</author> -->
+  <author email="rnavarro@robotnik.es">Román Navarro</author>
 
 
 
