@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<!-- Launch for the trajectory simulation -->
+<launch>
+	
+	
+    
+    <!-- Combine joint values -->
+	<node name="rt_gripper_exe" pkg="robotnik_trajectory_control" type="rt_gripper_exe.py" output="screen">
+		<rosparam command="load" file="$(find robotnik_trajectory_control)/config/grippers/rb1_gripper_interface.yaml" />
+	</node>
+	
+</launch> 

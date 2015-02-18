@@ -1,0 +1,16 @@
+# All the accepted models
+gripper_models: [ rb1_gripper1 ] 
+
+name: rb1_gripper_1
+model: rb1_gripper1
+joints: [jg1, jg2]
+action_service: /rt_traj_exe/follow_joint_trajectory
+min_opening: 0.0
+max_opening: 0.1
+min_opening_joint_val_f1: 0.15
+min_opening_joint_val_f2: 0.15
+max_opening_joint_val_f1: -0.2
+max_opening_joint_val_f2: -0.2
+
+
+
