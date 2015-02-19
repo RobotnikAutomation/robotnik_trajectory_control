@@ -79,6 +79,7 @@ INITIALIZE_SUBCOMPONENTS = 34
 # 
 DEFAULT_ERROR_JOINT_POSITION = 0.0009 # rads
 #self.error_joint_position_ = 0.000872665
+DEFAULT_JOINT_READ_STATE_TIMEOUT = 0.1 # seconds
 
 def get_param(name, value=None):
 	'''
@@ -103,13 +104,13 @@ class TrajectoryGoalExecution:
 	'''
 	_fields_ = [ ("joint_name", string),          
 				 ("joint_traj_points", JointTrajectoryPoint), 
-				 ("joint_params",  None),  # Ej. {'value': 0, 'upper': 3.14, 'lower': -3.14} params from robot_description
+				 ("joint_params",  None),  # Ej. {'value': 0, 'upper': 3.14, 'lower': -3.14, 'last_update_time': time.time(), 'joint_update_freq': Hz} params from robot_description
 				 ("joint_state",  None),  # Ej. {'position': 0.0, 'velocity': 0.0, 'effort': 0.0} values extracted from /joint_state
 				 ("current_point", int),
 				 ("current_time", float),   
 				 ("finished", bool)]     
 
-	def __init__(self, desired_freq):
+	def __init__(self, desired_freq, joint_read_state_timeout):
 		self.current_point = 0
 		self.current_time = 0.0
 		self.finished = False
@@ -117,8 +118,10 @@ class TrajectoryGoalExecution:
 		self.diff_position = 1000 # difference between current and current desired position 
 		if desired_freq <= 0:
 			desired_freq  = 1.0
-		self.joint_state_timeout = 0.1	# Sets timeout that will be trigger if joint_state value is not received. We apply a reduction of the main frequency
-	
+		self.joint_state_timeout = joint_read_state_timeout	# Sets timeout that will be trigger if joint_state value is not received.
+		if self.joint_state_timeout <= 0:
+			self.joint_state_timeout = DEFAULT_JOINT_READ_STATE_TIMEOUT
+		
 	def updateLen(self):
 		'''
 			Updates the value of length points
@@ -158,7 +161,8 @@ class TrajectoryGoalExecution:
 			@return: True if the value is updated at the correct frequency, False otherwise
 		'''
 		if self.joint_state['last_update_time'] is not None:
-			diff = (rospy.Time.now() - self.joint_state['last_update_time']).to_sec() 
+			#diff = (rospy.Time.now() - self.joint_state['last_update_time']).to_sec() 
+			diff = time.time() - self.joint_state['last_update_time']
 			if diff > self.joint_state_timeout:
 				#print 'Joint %s, diff = %.3f, max = %.3f'%(self.joint_name, diff, self.joint_state_timeout)
 				return False	# There's a timeout
@@ -181,6 +185,7 @@ class TrajExec:
 		self.node_name = rospy.get_name().replace('/','')
 		self.desired_freq = args['desired_freq'] 
 		self.error_joint_position_ = args['error_joint_position']
+		self.joint_read_state_timeout = args['joint_read_state_timeout']
 		# Checks value of freq
 		if self.desired_freq <= 0.0 or self.desired_freq > MAX_FREQ:
 			rospy.loginfo('%s::init: Desired freq (%f) is not possible. Setting desired_freq to %f'%(self.node_name,self.desired_freq, DEFAULT_FREQ))
@@ -339,11 +344,15 @@ class TrajExec:
 		# It will have extra params to allow the control
 		# Ex. {'position': float(joint['value']), 'velocity': 0.0, 'effort': 0.0, 'last_update_time': None, 'command_interface': None}
 		self.desired_joint_state = {}
+		t_now = time.time()
 		# Inits joint states
 		for (name,joint) in self.free_joints.items():
-			self.joint_state[name] = {'position': float(joint['value']), 'velocity': 0.0, 'effort': 0.0, 'last_update_time': None}
+			self.joint_state[name] = {'position': float(joint['value']), 'velocity': 0.0, 'effort': 0.0, 'last_update_time': t_now, 'joint_update_freq': 0.0}
 			self.desired_joint_state[name] = {'position': float(joint['value']), 'velocity': 0.0, 'effort': 0.0, 'last_update_time': None, 'command_interface': None}
-		
+			# For state publish
+			#self.msg_state.controlled_joints.append(name)
+			#self.msg_state.update_freq_joints.append(0.0)
+			
 		# Link every Command Interface with its configured joints
 		for interface in self.command_interfaces_dict:
 			for joint in self.command_interfaces_dict[interface].joint_names:
@@ -491,6 +500,8 @@ class TrajExec:
 				
 				if t_sleep > 0.0:
 					rospy.sleep(t_sleep)
+				else:
+					rospy.logerr('%s::controlLoop: not reaching desired freq (%f)'%(self.node_name, self.desired_freq))
 				
 				t3= time.time()
 				self.real_freq = 1.0/(t3 - t1)
@@ -938,6 +949,15 @@ class TrajExec:
 			components_array.append(subcomponent)
 		
 		self.msg_state.components = components_array	
+		
+		joints_freq = []
+		joint_names = []
+		for joint in self.joint_state:
+			joint_names.append(joint)
+			joints_freq.append('%.2f'%self.joint_state[joint]['joint_update_freq'])
+		
+		self.msg_state.update_freq_joints = joints_freq
+		self.msg_state.controlled_joints = joint_names		
 			
 		self._state_publisher.publish(self.msg_state)
 		
@@ -976,7 +996,7 @@ class TrajExec:
 			if new_goal.trajectory.joint_names[i] in self.free_joints:
 				
 				
-				n = TrajectoryGoalExecution(self.desired_freq)
+				n = TrajectoryGoalExecution(self.desired_freq, self.joint_read_state_timeout)
 				n.joint_name = new_goal.trajectory.joint_names[i] # name of the joint
 				n.joint_state = self.joint_state[n.joint_name]	# joint_state of this joint
 				n.joint_params = self.free_joints[n.joint_name] # joint params of this joint
@@ -1262,7 +1282,10 @@ class TrajExec:
 				self.joint_state[joint_name]['position'] = float(msg.position[i])
 				self.joint_state[joint_name]['velocity'] =  float(msg.velocity[i])
 				self.joint_state[joint_name]['effort'] =  float(msg.effort[i])
-				self.joint_state[joint_name]['last_update_time'] =  rospy.Time.now() #msg.header.stamp
+				t_now = time.time()
+				self.joint_state[joint_name]['joint_update_freq'] =  1.0/ (t_now - self.joint_state[joint_name]['last_update_time'])
+				self.joint_state[joint_name]['last_update_time'] =  t_now #rospy.Time.now() #msg.header.stamp
+				
 				#if joint_name == 'head_pan_joint':
 				#	print '%s updated to %s!'%(joint_name,self.joint_state[joint_name])
 	
@@ -1302,7 +1325,8 @@ def main():
 	arg_defaults = {
 	  'topic_state': 'state',
 	  'desired_freq': DEFAULT_FREQ,
-	  'error_joint_position': DEFAULT_ERROR_JOINT_POSITION
+	  'error_joint_position': DEFAULT_ERROR_JOINT_POSITION,
+	  'joint_read_state_timeout': DEFAULT_JOINT_READ_STATE_TIMEOUT
 	}
 	
 	args = {}
