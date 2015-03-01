@@ -80,6 +80,10 @@ INITIALIZE_SUBCOMPONENTS = 34
 DEFAULT_ERROR_JOINT_POSITION = 0.0009 # rads
 #self.error_joint_position_ = 0.000872665
 DEFAULT_JOINT_READ_STATE_TIMEOUT = 0.1 # seconds
+# Once the trajectory is initialized, there's a timeout if no joint variation is received
+DEFAULT_JOINT_NO_MOVEMENT_TIMEOUT = 2.0 #seconds
+# joint distance to change of trajectory point
+DEFAULT_JOINT_LOOKAHEAD = 0.09
 
 def get_param(name, value=None):
 	'''
@@ -186,6 +190,9 @@ class TrajExec:
 		self.desired_freq = args['desired_freq'] 
 		self.error_joint_position_ = args['error_joint_position']
 		self.joint_read_state_timeout = args['joint_read_state_timeout']
+		self.joint_no_movement_timeout = args['joint_no_movement_timeout']
+		self.ignore_acceleration = args['ignore_acceleration']
+		self.joint_lookahead_ = args['joint_lookahead']
 		# Checks value of freq
 		if self.desired_freq <= 0.0 or self.desired_freq > MAX_FREQ:
 			rospy.loginfo('%s::init: Desired freq (%f) is not possible. Setting desired_freq to %f'%(self.node_name,self.desired_freq, DEFAULT_FREQ))
@@ -297,7 +304,7 @@ class TrajExec:
 				rospy.logerr('%s::rosSetup: Param groups not found!'%self.node_name)
 				return -1
 		except rospy.ROSException, e:
-			rospy.logerror('%s::rosSetup %s'%(self.node_namee, e))
+			rospy.logerr('%s::rosSetup %s'%(self.node_namee, e))
 			return -1
 		
 		# array with all the command interfaces created
@@ -614,7 +621,7 @@ class TrajExec:
 			Checks that the joints are moving to the desired position.
 			In case that the movement is stuck, it'll detect it
 		'''
-		max_time = 1.0 # secs
+		
 		
 		#self.check_joints_movement_table = {'joint_xx':{'desired_pos': 1.2, 'current_pos': 1.1, 'diff': 0.1, 't_last_diff': time}}
 		
@@ -632,8 +639,8 @@ class TrajExec:
 					# Check time without variation
 						t_diff = time.time() - self.check_joints_movement_table[joint_name]['t_last_diff']
 						#print 'checking'
-						if t_diff >= max_time:
-							rospy.logerr('%s:checkJointsMovement: Following error on joint %s. %.3f secs without variation on position %f (desired = %f)'%(self.node_name, joint_name, t_diff, desired_pos, current_pos))
+						if t_diff >= self.joint_no_movement_timeout:
+							rospy.logerr('%s:checkJointsMovement: Following error on joint %s. %.3f secs without variation on position (current = %f, desired = %f)'%(self.node_name, joint_name, t_diff, current_pos, desired_pos))
 							
 							# ERROR EN FOLLOWING
 							return False
@@ -653,6 +660,14 @@ class TrajExec:
 	
 		return True
 	
+	def resetCheckJointsMovement(self):
+		'''
+			Resets the timeout checkout 
+		'''
+		if hasattr(self, 'check_joints_movement_table'):
+			self.check_joints_movement_table = {}
+		
+		
 	def readyState(self):
 		'''
 			Actions performed in ready state
@@ -689,9 +704,12 @@ class TrajExec:
 						
 						#print 'joint_state = %.3f'%i.joint_state['position']	
 						# if the difference is greater than the last cycle or is lower than the error joint pos,  we change the point objective  
-						if diff > i.diff_position or diff <= self.error_joint_position_:
+						if diff > i.diff_position:
+							print 'joint %s, point %d reached (%.3f). Diff = %.3lf  (last diff = %.3lf)'%(i.joint_name, i.current_point, i.joint_state['position'], diff, i.diff_position)	
+							i.nextPoint()
+						elif diff <= self.joint_lookahead_:
 							#print 'joint %s, point %d: reached'%(i.joint_name, i.current_point)	
-							#print 'joint %s, point %d reached (%.3f). Diff = %.3lf'%(i.joint_name, i.current_point, i.joint_state['position'], diff)	
+							print 'joint %s, point %d reached (%.3f). Diff = %.3lf (error = %.3lf)'%(i.joint_name, i.current_point, i.joint_state['position'], diff, self.error_joint_position_)	
 							i.nextPoint()
 											
 						else:
@@ -711,7 +729,7 @@ class TrajExec:
 							
 						# look for the end of trajectory
 						if diff > i.diff_position or diff <= self.error_joint_position_:
-							#print 'joint %s, end point %d reached (%.3f). Diff = %.3lf, diff_pos = %.3lf'%(i.joint_name, i.current_point, i.joint_state['position'],  diff, i.diff_position)
+							print 'joint %s, end point %d reached (%.3f). Diff = %.3lf, diff_pos = %.3lf'%(i.joint_name, i.current_point, i.joint_state['position'],  diff, i.diff_position)
 							i.finish()
 						else:
 							traj_finish = False
@@ -729,6 +747,7 @@ class TrajExec:
 			if self.current_follow_traj_goal['finished']:
 				self.follow_traj_action_server.set_succeeded()
 				self.ready_substate = IDLE_SUBSTATE
+				self.resetCheckJointsMovement()
 				rospy.loginfo('%s:readyState: switching from ACTIVE to IDLE substate'%self.node_name)
 			
 		#
@@ -1074,31 +1093,35 @@ class TrajExec:
 				if desired_velocity == 0.0:
 					desired_velocity = direction * 0.017
 				
-				# Control of velocity/acceleration
-				diff_velocity = desired_velocity - self.joint_state[point.joint_name]['velocity']
-				# inc_vel = a*t
-				inc_vel = t * a
-				
-				#print 'joint %s, desired_vel = %.4f, current_vel = %.4f, inc_vel = %.4f'%(point.joint_name, desired_velocity, self.joint_state[point.joint_name]['velocity'],inc_vel)
-				if diff_velocity > 0.0:
-					# positive acc
-					# v = v_current + a*t
-					#self.desired_joint_state[point.joint_name]['velocity'] = self.joint_state[point.joint_name]['velocity'] + inc_vel
-					self.desired_joint_state[point.joint_name]['velocity'] = self.desired_joint_state[point.joint_name]['velocity'] + inc_vel
-					if self.desired_joint_state[point.joint_name]['velocity'] - direction*point.joint_traj_points.velocities[point.current_point] > 0.0:
-						self.desired_joint_state[point.joint_name]['velocity'] = desired_velocity
-						#print 'MAX'
-			
-				elif diff_velocity < 0.0:
-					#self.desired_joint_state[point.joint_name]['velocity'] = self.joint_state[point.joint_name]['velocity'] - inc_vel
-					self.desired_joint_state[point.joint_name]['velocity'] = self.desired_joint_state[point.joint_name]['velocity'] - inc_vel
-					if self.desired_joint_state[point.joint_name]['velocity'] - direction*point.joint_traj_points.velocities[point.current_point] < 0.0:
-						self.desired_joint_state[point.joint_name]['velocity'] = desired_velocity
-						#print 'MIN'
-				
+				# ignores the acceleration 
+				if self.ignore_acceleration:
+					self.desired_joint_state[point.joint_name]['velocity'] = desired_velocity	
 				else:
-					self.desired_joint_state[point.joint_name]['velocity'] = desired_velocity		
+					# Control of velocity/acceleration
+					diff_velocity = desired_velocity - self.joint_state[point.joint_name]['velocity']
+					# inc_vel = a*t
+					inc_vel = t * a
+					
+					#print 'joint %s, desired_vel = %.4f, current_vel = %.4f, inc_vel = %.4f'%(point.joint_name, desired_velocity, self.joint_state[point.joint_name]['velocity'],inc_vel)
+					if diff_velocity > 0.0:
+						# positive acc
+						# v = v_current + a*t
+						#self.desired_joint_state[point.joint_name]['velocity'] = self.joint_state[point.joint_name]['velocity'] + inc_vel
+						self.desired_joint_state[point.joint_name]['velocity'] = self.desired_joint_state[point.joint_name]['velocity'] + inc_vel
+						if self.desired_joint_state[point.joint_name]['velocity'] - direction*point.joint_traj_points.velocities[point.current_point] > 0.0:
+							self.desired_joint_state[point.joint_name]['velocity'] = desired_velocity
+							#print 'MAX'
 				
+					elif diff_velocity < 0.0:
+						#self.desired_joint_state[point.joint_name]['velocity'] = self.joint_state[point.joint_name]['velocity'] - inc_vel
+						self.desired_joint_state[point.joint_name]['velocity'] = self.desired_joint_state[point.joint_name]['velocity'] - inc_vel
+						if self.desired_joint_state[point.joint_name]['velocity'] - direction*point.joint_traj_points.velocities[point.current_point] < 0.0:
+							self.desired_joint_state[point.joint_name]['velocity'] = desired_velocity
+							#print 'MIN'
+					
+					else:
+						self.desired_joint_state[point.joint_name]['velocity'] = desired_velocity		
+					
 				#print 'joint %s, desired_instant_vel = %.4f'%(point.joint_name, self.desired_joint_state[point.joint_name]['velocity'])
 				'''
 				# NO ACCEL CONTROL
@@ -1190,6 +1213,7 @@ class TrajExec:
 			self.desired_joint_state[point.joint_name]['velocity'] = 0.0
 				
 		self.sendCommands()
+		self.resetCheckJointsMovement()
 	
 	def pauseCurrentTraj(self):
 		'''
@@ -1279,9 +1303,18 @@ class TrajExec:
 		for i in range(len(msg.name)):
 			joint_name = msg.name[i]
 			if self.joint_state.has_key(joint_name):
-				self.joint_state[joint_name]['position'] = float(msg.position[i])
-				self.joint_state[joint_name]['velocity'] =  float(msg.velocity[i])
-				self.joint_state[joint_name]['effort'] =  float(msg.effort[i])
+				try:
+					self.joint_state[joint_name]['position'] = float(msg.position[i])
+				except IndexError, e:
+					rospy.logerr('%s:receiveJointStateCb: position index %d out of range: %s'%(self.node_name, i, e))
+				try:
+					self.joint_state[joint_name]['velocity'] =  float(msg.velocity[i])
+				except IndexError, e:
+					rospy.logerr('%s:receiveJointStateCb: velocity index %d out of range: %s'%(self.node_name, i, e))
+				try:
+					self.joint_state[joint_name]['effort'] =  float(msg.effort[i])
+				except IndexError, e:
+					rospy.logerr('%s:receiveJointStateCb: effort index %d out of range: %s'%(self.node_name, i, e))
 				t_now = time.time()
 				self.joint_state[joint_name]['joint_update_freq'] =  1.0/ (t_now - self.joint_state[joint_name]['last_update_time'])
 				self.joint_state[joint_name]['last_update_time'] =  t_now #rospy.Time.now() #msg.header.stamp
@@ -1326,7 +1359,10 @@ def main():
 	  'topic_state': 'state',
 	  'desired_freq': DEFAULT_FREQ,
 	  'error_joint_position': DEFAULT_ERROR_JOINT_POSITION,
-	  'joint_read_state_timeout': DEFAULT_JOINT_READ_STATE_TIMEOUT
+	  'joint_read_state_timeout': DEFAULT_JOINT_READ_STATE_TIMEOUT,
+	  'joint_no_movement_timeout': DEFAULT_JOINT_NO_MOVEMENT_TIMEOUT,
+	  'ignore_acceleration': False,
+	  'joint_lookahead': DEFAULT_JOINT_LOOKAHEAD
 	}
 	
 	args = {}
@@ -1339,7 +1375,7 @@ def main():
 				args[name] = arg_defaults[name]
 			#print name
 		except rospy.ROSException, e:
-			rospy.logerror('%s: %s'%(e, _name))
+			rospy.logerr('%s: %s'%(e, _name))
 			
 	
 	rtte_node = TrajExec(args)

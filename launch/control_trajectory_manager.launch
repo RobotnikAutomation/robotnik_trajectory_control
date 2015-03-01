@@ -4,13 +4,23 @@
 	
 	
     <!-- Configuration of every interface -->
-    <rosparam command="load" file="$(find robotnik_trajectory_control)/config/test_dpro_command_interfaces.yaml" />
+    <rosparam command="load" file="$(find robotnik_trajectory_control)/config/terabot_interfaces.yaml" />
     <!-- Combine joint values -->
 	<node name="rt_traj_exe" pkg="robotnik_trajectory_control" type="rt_traj_exe.py" output="screen">
 		<!-- remap from="joint_states" to="/rb1_arm/joint_states"/ -->
 		<!-- param name="error_joint_position" value="0.009"/ -->
-		<param name="error_joint_position" value="0.09"/>
-		<param name="desired_freq" value="20.0"/>
+		<!-- Accepted joint error position to end the trajectory (rads)  -->
+		<param name="error_joint_position" value="0.01"/>
+		<!-- joint distance to change of trajectory point (rads) -->
+		<param name="joint_lookahead" value="0.05"/>
+		<!-- Control frequency  -->
+		<param name="desired_freq" value="15.0"/>
+		<!-- Controlled joints has to update their state within this time window -->
+ 		<param name="joint_read_state_timeout" value="0.25"/>
+ 		<!-- if any joint is not moving within this time window it will cancel the trajectory -->
+		<param name="joint_no_movement_timeout" value="1.0"/>
+		<!-- Do not apply acceleration curve to the joint -->
+		<param name="ignore_acceleration" value="false"/>
 	</node>
 	
 </launch> 
