@@ -6,7 +6,7 @@ from sensor_msgs.msg import JointState
 from brics_actuator.msg import JointVelocities, JointValue
 from rospy.exceptions import ROSException
 
-from robotnik_trajectory_msgs.msg import State
+from robotnik_msgs.msg import State
 
 from std_srvs.srv import Empty
 

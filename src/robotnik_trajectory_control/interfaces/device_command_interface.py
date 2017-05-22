@@ -96,7 +96,7 @@ class DeviceCommandInterface():
 		
 		if len(self.command_topic) > 0:			
 			try:
-				self.command_publisher = rospy.Publisher(self.command_topic, JointState)
+				self.command_publisher = rospy.Publisher(self.command_topic, JointState, queue_size=1)
 				rospy.loginfo('%s-%s:setup: connecting to topic  %s'%(self.type, self.name, self.command_topic))
 			except ValueError, e:
 				rospy.logerr('%s-%s:setup: Error connecting to topic  %s ->(%s)'%(self.type, self.name, self.command_topic, e))
