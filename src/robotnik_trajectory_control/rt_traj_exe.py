@@ -54,6 +54,7 @@ import time
 #from ipa_canopen_command_interface import *
 from interfaces.device_command_interface import DeviceCommandInterface
 from interfaces.gazebo_command_interface import GazeboPositionCommandInterface
+from interfaces.kinova_command_interface import KinovaCommandInterface
 
 #from robotnik_trajectory_msgs.msg import State, Actions
 from robotnik_msgs.msg import State
@@ -312,8 +313,11 @@ class TrajExec:
 		
 		for i in groups:
 			type_group = groups[i]['type']
+			# Kinova arm
+			if type_group == 'kinova':
+				d = KinovaCommandInterface( args = groups[i])
 			# Schunk arm
-			if type_group == 'ipa_can_open':
+			elif type_group == 'ipa_can_open':
 				d = IpaCANOpenCommandInterface( args = groups[i])
 			# BHand
 			elif type_group == 'bhand':
@@ -327,10 +331,14 @@ class TrajExec:
 			# Gazebo Position
 			elif type_group == 'gazebo_position':
 				d = GazeboPositionCommandInterface(args = groups[i])
-			# Others
-			else:
+			# Standard
+			elif type_group == 'standard':
 				d = DeviceCommandInterface( args = groups[i])
-			
+			# Not defined, error
+			else:
+				d = None
+				rospy.logerr('%s::rosSetup: Error on the interface name type:%s does not exist. Discarded'%(self.node_name, type_group))
+				
 			if d.setup() == 0:
 				if self.command_interfaces_dict.has_key(d.name):
 					rospy.logerr('%s::rosSetup: Error on the interface name %s:%s already exist. Discarded'%(self.node_name, d.type, d.name))
